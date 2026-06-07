@@ -1,0 +1,6 @@
+{
+  "name": "Dragon Ball Wallpapers",
+  "description": "Unlock high-quality premium Dragon Ball wallpapers designed to personalize your Android device offline.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
