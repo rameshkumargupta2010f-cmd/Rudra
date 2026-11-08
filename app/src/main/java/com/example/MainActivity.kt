@@ -1,9 +1,13 @@
 package com.example
 
 import android.app.WallpaperManager
+import android.content.ContentValues
 import android.content.Context
+import android.graphics.BitmapFactory
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -830,34 +834,81 @@ fun WallpaperDashboardScreen() {
 
                   Spacer(modifier = Modifier.height(20.dp))
 
-                  // Apply Wallpaper Action Button
-                  Button(
-                    onClick = { showWallpaperOptionDialog = true },
-                    modifier = Modifier
-                      .fillMaxWidth()
-                      .height(52.dp)
-                      .testTag("apply_wallpaper_button"),
-                    colors = ButtonDefaults.buttonColors(
-                      containerColor = DbzOrangePrimary,
-                      contentColor = Color.White
-                    ),
-                    shape = RoundedCornerShape(12.dp)
+                  // Action Buttons: Save/Download to Gallery & Set as Wallpaper
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                   ) {
-                    Row(
-                      verticalAlignment = Alignment.CenterVertically,
-                      horizontalArrangement = Arrangement.Center
+                    // Download to Gallery Button
+                    OutlinedButton(
+                      onClick = {
+                        coroutineScope.launch {
+                          isApplyingWallpaper = true
+                          val result = withContext(Dispatchers.IO) {
+                            saveWallpaperToGallery(context, wallpaper.drawableResId, wallpaper.title)
+                          }
+                          isApplyingWallpaper = false
+                          Toast.makeText(context, result, Toast.LENGTH_LONG).show()
+                        }
+                      },
+                      modifier = Modifier
+                        .weight(1f)
+                        .height(52.dp)
+                        .testTag("download_wallpaper_button"),
+                      colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = DbzAccentGold
+                      ),
+                      border = BorderStroke(1.5.dp, DbzAccentGold),
+                      shape = RoundedCornerShape(12.dp)
                     ) {
-                      Icon(
-                        imageVector = Icons.Default.Done,
-                        contentDescription = "Set Wallpaper Click"
-                      )
-                      Spacer(modifier = Modifier.width(8.dp))
-                      Text(
-                        "SET AS WALLPAPER",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp,
-                        letterSpacing = 1.sp
-                      )
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                      ) {
+                        Icon(
+                          imageVector = Icons.Default.Done,
+                          contentDescription = "Save to Gallery Icon",
+                          tint = DbzAccentGold
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                          "DOWNLOAD",
+                          fontWeight = FontWeight.Bold,
+                          fontSize = 13.sp,
+                          letterSpacing = 0.5.sp
+                        )
+                      }
+                    }
+
+                    // Apply Wallpaper Action Button
+                    Button(
+                      onClick = { showWallpaperOptionDialog = true },
+                      modifier = Modifier
+                        .weight(1.3f)
+                        .height(52.dp)
+                        .testTag("apply_wallpaper_button"),
+                      colors = ButtonDefaults.buttonColors(
+                        containerColor = DbzOrangePrimary,
+                        contentColor = Color.White
+                      ),
+                      shape = RoundedCornerShape(12.dp)
+                    ) {
+                      Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                      ) {
+                        Icon(
+                          imageVector = Icons.Default.Star,
+                          contentDescription = "Set Wallpaper Click"
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                          "SET WALLPAPER",
+                          fontWeight = FontWeight.Bold,
+                          fontSize = 13.sp,
+                          letterSpacing = 0.5.sp
+                        )
+                      }
                     }
                   }
                 }
@@ -1034,6 +1085,40 @@ private fun applyOfflineWallpaper(context: Context, resId: Int, flag: Int): Stri
     "Success! Dragon Ball power applied to your device background."
   } catch (e: Exception) {
     "Failed to apply wallpaper: ${e.localizedMessage ?: "Unknown Error"}"
+  }
+}
+
+// Save Full-Res Wallpaper directly to Gallery / Pictures folder offline
+private fun saveWallpaperToGallery(context: Context, resId: Int, title: String): String {
+  return try {
+    val bitmap = BitmapFactory.decodeResource(context.resources, resId)
+    val filename = "DBZ_${title.replace(" ", "_")}_${System.currentTimeMillis()}.png"
+    val contentValues = ContentValues().apply {
+      put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+      put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/DragonBallWallpapers")
+        put(MediaStore.MediaColumns.IS_PENDING, 1)
+      }
+    }
+
+    val resolver = context.contentResolver
+    val imageUri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
+      ?: return "Failed to access storage."
+
+    resolver.openOutputStream(imageUri)?.use { out ->
+      bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG, 100, out)
+    }
+
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      contentValues.clear()
+      contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+      resolver.update(imageUri, contentValues, null, null)
+    }
+
+    "Downloaded! Saved to Pictures/DragonBallWallpapers"
+  } catch (e: Exception) {
+    "Download failed: ${e.localizedMessage ?: "Error saving file"}"
   }
 }
 
